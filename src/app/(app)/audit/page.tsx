@@ -51,7 +51,7 @@ function SkeletonRows() {
         <>
             {[1, 2, 3, 4, 5, 6].map((i) => (
                 <tr key={i}>
-                    {[80, 120, 160, 80].map((w, j) => (
+                    {[80, 90, 120, 160, 80].map((w, j) => (
                         <td key={j} style={{ padding: "16px 20px" }}>
                             <div className="skeleton" style={{ height: "14px", width: `${w}px` }} />
                         </td>
@@ -165,7 +165,7 @@ export default function AuditPage() {
                     Activity Log
                 </h2>
                 <p style={{ fontSize: "13.5px", color: "var(--muted)", marginTop: "4px" }}>
-                    Real-time audit trail of all employee actions
+                    Real-time audit trail of all actions
                 </p>
             </div>
 
@@ -179,13 +179,13 @@ export default function AuditPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                             <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid var(--border)" }}>
-                                {["Action", "Employee", "Admin", "Time"].map((col, i) => (
+                                {["Action", "Entity Type", "Target Name", "Admin", "Time"].map((col, i) => (
                                     <th key={col} style={{
                                         padding: "13px 20px",
                                         fontSize: "11px", fontWeight: 600,
                                         letterSpacing: "0.07em", textTransform: "uppercase",
                                         color: "var(--muted)",
-                                        textAlign: i === 3 ? "right" : "left",
+                                        textAlign: i === 4 ? "right" : "left",
                                         whiteSpace: "nowrap",
                                     }}>
                                         {col}
@@ -219,6 +219,9 @@ export default function AuditPage() {
                                     }}>
                                         <td style={{ padding: "14px 20px" }}>
                                             <ActionBadge action={log.action} />
+                                        </td>
+                                        <td style={{ padding: "14px 20px", fontSize: "13px", fontWeight: 500, color: "var(--muted)" }}>
+                                            {log.targetType || "Employee"}
                                         </td>
                                         <td style={{ padding: "14px 20px", fontSize: "13.5px", fontWeight: 600, color: "var(--foreground)" }}>
                                             {log.targetName || "—"}

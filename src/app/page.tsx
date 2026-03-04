@@ -164,7 +164,7 @@ export default function LandingPage() {
 
         <div className={s.navCtas}>
           <Link href="/login" className={s.navLoginBtn}>Log In</Link>
-          <Link href="/login" className={s.navPrimaryBtn}>Start Free Trial</Link>
+          <Link href="/signup" className={s.navPrimaryBtn}>Start Free Trial</Link>
         </div>
       </nav>
 
@@ -190,7 +190,7 @@ export default function LandingPage() {
         </p>
 
         <div className={`${s.heroCtas} ${s.fadeUp} ${s.fadeUp3}`}>
-          <Link href="/login" className={s.btnPrimary}>
+          <Link href="/signup" className={s.btnPrimary}>
             Start Free Trial <IconArrow />
           </Link>
           <Link href="/login" className={s.btnSecondary}>
@@ -429,7 +429,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <Link
-                  href="/login"
+                  href="/signup"
                   className={`${s.pricingBtn} ${plan.featured ? s.pricingBtnSolid : s.pricingBtnOutline}`}
                 >
                   {plan.tier === "Enterprise" ? "Contact Sales" : "Get Started"}
@@ -453,7 +453,7 @@ export default function LandingPage() {
             field teams on FieldPulse.
           </p>
           <div className={s.ctaButtons}>
-            <Link href="/login" className={s.ctaBtnPrimary}>
+            <Link href="/signup" className={s.ctaBtnPrimary}>
               Create Your Company <IconArrow />
             </Link>
             <a href="mailto:demo@fieldpulse.io" className={s.ctaBtnSecondary}>

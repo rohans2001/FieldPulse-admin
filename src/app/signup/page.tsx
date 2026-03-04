@@ -1,22 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useState, useEffect, useRef } from "react";
+import { createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { doc, setDoc, serverTimestamp, collection } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function SignupPage() {
     const router = useRouter();
+    const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [companyName, setCompanyName] = useState("");
     const [error, setError] = useState("");
+    const [passwordStrength, setPasswordStrength] = useState<{ score: number, message: string }>({ score: 0, message: "" });
     const [isLoading, setIsLoading] = useState(false);
+    const isSigningUp = useRef(false);
+
+    // Password validation logic
+    const validatePassword = (pass: string) => {
+        let score = 0;
+        if (!pass) return { score: 0, message: "" };
+
+        if (pass.length >= 8) score += 1;
+        if (/[A-Z]/.test(pass)) score += 1;
+        if (/[0-9]/.test(pass)) score += 1;
+        if (/[^a-zA-Z0-9]/.test(pass)) score += 1;
+
+        let message = "Too weak";
+        if (score === 1) message = "Weak";
+        if (score === 2) message = "Fair";
+        if (score === 3) message = "Good";
+        if (score === 4) message = "Strong";
+
+        return { score, message };
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setPassword(val);
+        setPasswordStrength(validatePassword(val));
+    };
 
     // 🔥 Redirect if already logged in
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
+            if (user && !isSigningUp.current) {
                 router.push("/dashboard");
             }
         });
@@ -24,16 +54,63 @@ export default function LoginPage() {
         return () => unsubscribe();
     }, [router]);
 
-    const handleLogin = async (e: any) => {
+    const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+
+        if (!fullName || !email || !password || !companyName) {
+            setError("All fields are required");
+            return;
+        }
+
+        if (passwordStrength.score < 3) {
+            setError("Please choose a stronger password (must contain at least 8 characters, an uppercase letter, and a number)");
+            return;
+        }
+
         setIsLoading(true);
+        isSigningUp.current = true;
 
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            // Step 1: Create Firebase Auth user
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            // Generate a new company ID
+            const companyRef = doc(collection(db, "companies"));
+            const companyId = companyRef.id;
+
+            // Step 2: Create a new company document
+            await setDoc(companyRef, {
+                name: companyName,
+                createdAt: serverTimestamp(),
+                createdBy: user.uid,
+                status: "active",
+                plan: "starter"
+            });
+
+            // Step 3: Create a user document
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, {
+                fullName: fullName,
+                email: email,
+                companyId: companyId,
+                role: "owner",
+                createdAt: serverTimestamp()
+            });
+
+            // Step 4: Redirect user to /dashboard
             router.push("/dashboard");
         } catch (err: any) {
-            setError("Invalid email or password");
+            console.error("Signup error:", err);
+            if (err.code === 'auth/email-already-in-use') {
+                setError("Email already exists");
+            } else if (err.code === 'auth/weak-password') {
+                setError("Password should be at least 6 characters");
+            } else {
+                setError(err.message || "Failed to create account");
+            }
+            isSigningUp.current = false;
         } finally {
             setIsLoading(false);
         }
@@ -120,27 +197,57 @@ export default function LoginPage() {
                             margin: "0 0 6px",
                         }}
                     >
-                        FieldPulse Admin
+                        Create your Workspace
                     </h1>
                     <p style={{ fontSize: "13.5px", color: "#64748B", margin: 0 }}>
-                        Sign in to your admin dashboard
+                        Sign up for FieldPulse Admin
                     </p>
                 </div>
 
-                <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <form onSubmit={handleSignup} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                     <div>
                         <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
-                            Email address
+                            Full Name
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="John Doe"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="signup-input"
+                            style={inputStyle}
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                            Work Email
                         </label>
                         <input
                             type="email"
                             placeholder="you@company.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="login-input"
+                            className="signup-input"
                             style={inputStyle}
                             required
                             autoComplete="email"
+                        />
+                    </div>
+
+                    <div>
+                        <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                            Company Name
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="ABC Logistics"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            className="signup-input"
+                            style={inputStyle}
+                            required
                         />
                     </div>
 
@@ -152,13 +259,44 @@ export default function LoginPage() {
                             type="password"
                             placeholder="••••••••"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="login-input"
+                            onChange={handlePasswordChange}
+                            className="signup-input"
                             style={inputStyle}
                             required
-                            autoComplete="current-password"
+                            autoComplete="new-password"
                         />
                     </div>
+
+                    {/* Password Strength Indicator */}
+                    {password && (
+                        <div style={{ padding: "0 4px" }}>
+                            <div style={{ display: "flex", gap: "4px", marginBottom: "6px" }}>
+                                {[1, 2, 3, 4].map((level) => (
+                                    <div
+                                        key={level}
+                                        style={{
+                                            height: "4px",
+                                            flex: 1,
+                                            borderRadius: "2px",
+                                            backgroundColor:
+                                                passwordStrength.score >= level
+                                                    ? (passwordStrength.score < 2 ? "#EF4444" : passwordStrength.score < 3 ? "#F59E0B" : passwordStrength.score < 4 ? "#10B981" : "#059669")
+                                                    : "#E2E8F0",
+                                            transition: "background-color 0.2s ease"
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                            <p style={{
+                                fontSize: "11px",
+                                margin: 0,
+                                fontWeight: 500,
+                                color: passwordStrength.score < 2 ? "#EF4444" : passwordStrength.score < 3 ? "#F59E0B" : "#10B981"
+                            }}>
+                                Password strength: {passwordStrength.message}
+                            </p>
+                        </div>
+                    )}
 
                     {error && (
                         <div
@@ -184,7 +322,7 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="login-btn"
+                        className="signup-btn"
                         style={{
                             width: "100%",
                             padding: "12px",
@@ -211,17 +349,17 @@ export default function LoginPage() {
                                     <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
                                     <path style={{ opacity: 0.75 }} fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
-                                Signing in…
+                                Creating company...
                             </>
                         ) : (
-                            "Sign in"
+                            "Create Company"
                         )}
                     </button>
 
                     <div style={{ textAlign: "center", marginTop: "16px", fontSize: "13.5px", color: "#64748B" }}>
-                        Don't have an account?{" "}
-                        <Link href="/signup" style={{ color: "#2563EB", fontWeight: 500, textDecoration: "none" }}>
-                            Sign up
+                        Already have an account?{" "}
+                        <Link href="/login" style={{ color: "#2563EB", fontWeight: 500, textDecoration: "none" }}>
+                            Login
                         </Link>
                     </div>
                 </form>
@@ -229,9 +367,19 @@ export default function LoginPage() {
 
             <style>{`
                 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
-                .login-input:focus { outline: none; border-color: #2563EB !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); background-color: #fff !important; }
-                .login-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(37,99,235,0.35) !important; }
-                .login-btn:not(:disabled):active { transform: scale(0.98); }
+                .signup-input:focus { outline: none; border-color: #2563EB !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); background-color: #fff !important; }
+                .signup-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(37,99,235,0.35) !important; }
+                .signup-btn:not(:disabled):active { transform: scale(0.98); }
+                @keyframes scale-in {
+                    from { transform: scale(0.95); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+                .animate-scale-in { animation: scale-in 0.3s ease-out forwards; }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </div>
     );

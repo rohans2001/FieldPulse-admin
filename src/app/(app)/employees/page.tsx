@@ -19,8 +19,8 @@ import { onAuthStateChanged } from "firebase/auth";
 
 /* ── Audit log writer ───────────────────────────────────────────── */
 async function writeAuditLog({
-    companyId, adminId, adminEmail, action, targetId, targetName,
-}: { companyId: string; adminId: string; adminEmail: string; action: string; targetId: string; targetName: string }) {
+    companyId, adminId, adminEmail, action, targetId, targetName, targetType
+}: { companyId: string; adminId: string; adminEmail: string; action: string; targetId: string; targetName: string; targetType: string }) {
     if (!adminId) { console.warn("[AuditLog] No adminId — skipping log"); return; }
     try {
         await addDoc(collection(db, "audit_logs"), {
@@ -30,12 +30,27 @@ async function writeAuditLog({
             action,
             targetId,
             targetName,
+            targetType,
             timestamp: serverTimestamp(),
         });
     } catch (err) {
         console.error("[AuditLog] Failed to write audit entry:", err);
     }
 }
+
+/* ── Icons ──────────────────────────────────────────────────────── */
+const IconEdit = ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+);
+const IconTrash = ({ size = 16 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+);
 
 /* ── Spinner ────────────────────────────────────────────────────── */
 function Spinner() {
@@ -145,12 +160,12 @@ export default function EmployeesPage() {
         try {
             if (editingId) {
                 await updateDoc(doc(db, "employees", editingId), { ...formData });
-                await writeAuditLog({ companyId, adminId, adminEmail, action: "updated", targetId: editingId, targetName: formData.name });
+                await writeAuditLog({ companyId, adminId, adminEmail, action: "updated", targetId: editingId, targetName: formData.name, targetType: "Employee" });
             } else {
                 const newDoc = await addDoc(collection(db, "employees"), {
                     ...formData, companyId, status: "Active", createdAt: serverTimestamp(),
                 });
-                await writeAuditLog({ companyId, adminId, adminEmail, action: "created", targetId: newDoc.id, targetName: formData.name });
+                await writeAuditLog({ companyId, adminId, adminEmail, action: "created", targetId: newDoc.id, targetName: formData.name, targetType: "Employee" });
             }
             setIsOpen(false);
             setFormData({ name: "", email: "", role: "Sales" });
@@ -168,7 +183,7 @@ export default function EmployeesPage() {
         if (!deleteTarget || !companyId) return;
         setIsDeleting(true);
         try {
-            await writeAuditLog({ companyId, adminId, adminEmail, action: "deleted", targetId: deleteTarget.id, targetName: deleteTarget.name });
+            await writeAuditLog({ companyId, adminId, adminEmail, action: "deleted", targetId: deleteTarget.id, targetName: deleteTarget.name, targetType: "Employee" });
             await deleteDoc(doc(db, "employees", deleteTarget.id));
             setDeleteTarget(null);
         } finally {
@@ -189,7 +204,7 @@ export default function EmployeesPage() {
         });
         await writeAuditLog({
             companyId, adminId, adminEmail, action: "status_changed",
-            targetId: emp.id, targetName: emp.name || "",
+            targetId: emp.id, targetName: emp.name || "", targetType: "Employee"
         });
     };
 
@@ -403,14 +418,14 @@ export default function EmployeesPage() {
                                                 <StatusBadge status={emp.status || "Active"} onClick={() => toggleStatus(emp)} />
                                             </td>
                                             <td style={{ padding: "16px 20px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                                <button onClick={() => handleEdit(emp)} className="row-action-btn edit"
-                                                    style={{ background: "none", border: "none", fontSize: "13px", fontWeight: 500, color: "var(--primary)", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", transition: "all 0.12s ease", marginRight: "4px" }}>
-                                                    Edit
-                                                </button>
-                                                <button onClick={() => handleDelete(emp)} className="row-action-btn delete"
-                                                    style={{ background: "none", border: "none", fontSize: "13px", fontWeight: 500, color: "#EF4444", cursor: "pointer", padding: "4px 8px", borderRadius: "6px", transition: "all 0.12s ease" }}>
-                                                    Delete
-                                                </button>
+                                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                                                    <button onClick={() => handleEdit(emp)} className="action-btn hover-blue" title="Edit Employee">
+                                                        <IconEdit size={16} />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(emp)} className="action-btn hover-red" title="Delete Employee">
+                                                        <IconTrash size={16} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -470,8 +485,9 @@ export default function EmployeesPage() {
                 .table-row:hover { background-color: #EFF6FF !important; }
                 .status-badge:hover { transform: scale(1.04); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
                 .status-badge:active { transform: scale(0.97); }
-                .row-action-btn.edit:hover { background-color: #EFF6FF; }
-                .row-action-btn.delete:hover { background-color: #FEF2F2; }
+                .action-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; transition: all 0.15s ease; color: var(--muted); display: inline-flex; }
+                .hover-blue:hover { color: #2563EB; background-color: rgba(37,99,235,0.1); }
+                .hover-red:hover { color: #DC2626; background-color: rgba(220,38,38,0.1); }
                 .form-input:focus { outline: none; border-color: #2563EB !important; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); background-color: #fff !important; }
                 .cancel-btn:hover { background-color: #F1F5F9 !important; color: var(--foreground) !important; }
                 .submit-btn:not(:disabled):hover { transform: translateY(-1px); }
@@ -481,8 +497,6 @@ export default function EmployeesPage() {
                 .delete-confirm-btn:not(:disabled):active { transform: scale(0.97); }
                 @media (prefers-color-scheme: dark) {
                   .table-row:hover { background-color: rgba(37,99,235,0.07) !important; }
-                  .row-action-btn.edit:hover { background-color: rgba(37,99,235,0.1); }
-                  .row-action-btn.delete:hover { background-color: rgba(239,68,68,0.1); }
                   .cancel-btn:hover { background-color: rgba(255,255,255,0.05) !important; }
                   .modal-close:hover { background-color: rgba(255,255,255,0.06) !important; }
                   .form-input:focus { background-color: #0F172A !important; }
